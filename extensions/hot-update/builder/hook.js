@@ -44,6 +44,47 @@ var inject_script = `
 })();
 `;
 
+function copyDir(dir, target) {
+    try {
+        if(!target) return;
+        var stat = fs.statSync(dir);
+        if (!stat.isDirectory()) {
+            return;
+        }
+        mkdirSync(target);
+        var subpaths = fs.readdirSync(dir);
+        for (var i = 0; i < subpaths.length; ++i) {
+            let fname = subpaths[i]
+            var subpath = path.join(dir, fname);
+            stat = fs.statSync(subpath);
+            if (stat.isDirectory()) {
+                copyDir(subpath, path.join(target, fname));
+            }
+            else if (stat.isFile()) {
+                fs.copyFileSync(subpath, path.join(target, fname));
+            }
+        }
+    } catch (err) {
+        console.error(err)
+    }
+}
+
+function delDir(path){
+    let files = [];
+    if(fs.existsSync(path)){
+        files = fs.readdirSync(path);
+        files.forEach((file, index) => {
+            let curPath = path + "/" + file;
+            if(fs.statSync(curPath).isDirectory()){
+                delDir(curPath);
+            } else {
+                fs.unlinkSync(curPath);
+            }
+        });
+        fs.rmdirSync(path);
+    }
+}
+
 function readDir(src, dir, obj, copyDir) {
     try {
         var stat = fs.statSync(dir);
@@ -133,7 +174,6 @@ exports.onAfterBuild = function (options, result) {
     } else {
         console.log(PACKAGE_NAME, 'inject_script failed');
     }
-    
 
     if(!pkgOptions.isBuildServerFile && !pkgOptions.isSyncAssetsFile) {
         return;
@@ -158,21 +198,11 @@ exports.onAfterBuild = function (options, result) {
 
     let src = path.join(result.dest, resdir);
 
-    let copyDir = null;
-    if(pkgOptions.isBuildServerFile) {
-        if(pkgOptions.saveDir.indexOf('.') == 0){
-            copyDir = path.join(result.dest, pkgOptions.saveDir)
-        } else {
-            copyDir = pkgOptions.saveDir;
-        }
-        console.log(PACKAGE_NAME, "copyDir:", copyDir);
-        mkdirSync(copyDir)
-    }
-    let arr = ["src", "assets", "jsb-adapter"]
-    for(let i = 0; i < arr.length; i++) {
-        let sub_folder = path.join(src, arr[i])
+    let folderNameArr = ["src", "assets", "jsb-adapter"]
+    for(let i = 0; i < folderNameArr.length; i++) {
+        let sub_folder = path.join(src, folderNameArr[i])
         if(fs.existsSync(sub_folder)) {
-            readDir(src, sub_folder, manifest.assets, copyDir ? path.join(copyDir, arr[i]) : null);
+            readDir(src, sub_folder, manifest.assets);
         } else {
             console.log(PACKAGE_NAME, "not exists:", sub_folder);
         }
@@ -186,25 +216,9 @@ exports.onAfterBuild = function (options, result) {
         let fileList = result.getAssetPathInfo(metaJson.uuid)
         if(fileList.length != 0) {
             let saveUuidMenifestPath = fileList[0].raw[0]
-            fs.writeFile(saveUuidMenifestPath, manifestJson, (err) => {
-                if (err) throw err;
-                console.log(PACKAGE_NAME, 'UUID project.manifest file successfully updated:' + saveUuidMenifestPath);
-            });
+            fs.writeFileSync(saveUuidMenifestPath, manifestJson);
+            console.log(PACKAGE_NAME, 'UUID project.manifest file successfully updated:' + saveUuidMenifestPath);
         }
-    }
-    if(pkgOptions.isBuildServerFile) {
-        let destManifest = path.join(copyDir, 'project.manifest');
-        fs.writeFile(destManifest, manifestJson, (err) => {
-            if (err) throw err;
-            console.log(PACKAGE_NAME, 'Server Manifest successfully generated');
-        });
-    }
-    if(pkgOptions.isSyncAssetsFile) {
-        let destManifest = path.join(Editor.Project.path, "assets", 'project.manifest');
-        fs.writeFile(destManifest, manifestJson, (err) => {
-            if (err) throw err;
-            console.log(PACKAGE_NAME, 'Assets Manifest successfully generated');
-        });
     }
 
     delete manifest.assets;
@@ -218,24 +232,50 @@ exports.onAfterBuild = function (options, result) {
         let fileList = result.getAssetPathInfo(metaJson.uuid)
         if(fileList.length != 0) {
             let saveUuidMenifestPath = fileList[0].raw[0]
-            fs.writeFile(saveUuidMenifestPath, versionJson, (err) => {
-                if (err) throw err;
-                console.log(PACKAGE_NAME, 'UUID version.manifest file successfully updated:' + saveUuidMenifestPath);
-            });
+            fs.writeFileSync(saveUuidMenifestPath, versionJson);
+            console.log(PACKAGE_NAME, 'UUID version.manifest file successfully updated:' + saveUuidMenifestPath);
         }
     }
-    if(pkgOptions.isBuildServerFile) {
-        let destVersion = path.join(copyDir, 'version.manifest');
-        fs.writeFile(destVersion, versionJson, (err) => {
-            if (err) throw err;
-            console.log(PACKAGE_NAME, 'Server Version successfully generated');
-        })
-    }
+
     if(pkgOptions.isSyncAssetsFile) {
+        let destManifest = path.join(Editor.Project.path, "assets", 'project.manifest');
+        fs.writeFileSync(destManifest, manifestJson);
+        console.log(PACKAGE_NAME, 'Assets Manifest successfully generated');
+        
         let destVersion = path.join(Editor.Project.path, "assets", 'version.manifest');
-        fs.writeFile(destVersion, versionJson, (err) => {
-            if (err) throw err;
-            console.log(PACKAGE_NAME, 'Assets Version successfully generated');
-        })
+        fs.writeFileSync(destVersion, versionJson)
+        console.log(PACKAGE_NAME, 'Assets Version successfully generated');
     }
+
+    if(pkgOptions.isBuildServerFile) {
+        let copyDirTarget = null;
+        if(pkgOptions.isBuildServerFile) {
+            if(pkgOptions.saveDir.indexOf('.') == 0){
+                copyDirTarget = path.join(result.dest, pkgOptions.saveDir)
+            } else {
+                copyDirTarget = pkgOptions.saveDir;
+            }
+            console.log(PACKAGE_NAME, "copyDir:", copyDirTarget);
+        }
+        if(fs.existsSync(copyDirTarget)) {
+            console.log(PACKAGE_NAME, 'clear old folder:'+ copyDirTarget);
+            delDir(copyDirTarget)
+        }
+        fs.mkdirSync(copyDirTarget)
+        for(let i = 0; i < folderNameArr.length; i++) {
+            let sub_folder = path.join(src, folderNameArr[i])
+            if(fs.existsSync(sub_folder)) {
+                copyDir(sub_folder, path.join(copyDirTarget, folderNameArr[i]));
+            }
+        }
+
+        let destManifest = path.join(copyDirTarget, 'project.manifest');
+        fs.writeFileSync(destManifest, manifestJson);
+        console.log(PACKAGE_NAME, 'Server Manifest successfully generated');
+
+        let destVersion = path.join(copyDirTarget, 'version.manifest');
+        fs.writeFileSync(destVersion, versionJson)
+        console.log(PACKAGE_NAME, 'Server Version successfully generated');
+    }
+    
 }
