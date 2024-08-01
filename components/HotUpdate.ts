@@ -187,12 +187,19 @@ export class HotUpdate extends Component {
             // Prepend the manifest's search path
             var searchPaths = jsb.fileUtils.getSearchPaths();
             var newPaths = this._am.getLocalManifest().getSearchPaths();
+            var writePath = jsb.fileUtils.getWritablePath();
             console.log(JSON.stringify(newPaths));
             Array.prototype.unshift.apply(searchPaths, newPaths);
+            var hotPaths = ['./remote-asset/']
+            for(var i = 0; i < newPaths.length; i++) {
+                if(newPaths[i].indexOf(writePath) == 0) {
+                    hotPaths.push(newPaths[i].replace(writePath, './'))
+                }
+            }
             // This value will be retrieved and appended to the default search path during game startup,
             // please refer to samples/js-tests/main.js for detailed usage.
             // !!! Re-add the search paths in main.js is very important, otherwise, new scripts won't take effect.
-            localStorage.setItem("HotUpdateSearchPaths", JSON.stringify(searchPaths));
+            localStorage.setItem("HotUpdateSearchPaths", JSON.stringify(hotPaths));
             jsb.fileUtils.setSearchPaths(searchPaths);
 
             this._waitingRestart = true;

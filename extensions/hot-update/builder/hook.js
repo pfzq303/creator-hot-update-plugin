@@ -13,7 +13,17 @@ var inject_script = `
     if (typeof window.jsb === 'object') {
         var hotUpdateSearchPaths = localStorage.getItem('HotUpdateSearchPaths');
         if (hotUpdateSearchPaths) {
-            var paths = JSON.parse(hotUpdateSearchPaths);
+            var writablePath = jsb.fileUtils.getWritablePath();
+            var origSearchPaths = jsb.fileUtils.getSearchPaths();
+            var paths = JSON.parse(hotUpdateSearchPaths) || [];
+            for(var i = 0; i < paths.length; i++) {
+                if(path[i].indexOf("./") == 0) {
+                    paths[i] = writablePath + paths[i].substr(2);
+                }
+            }
+            for(var i = 0; i < origSearchPaths.length; i++) {
+                paths.push(origSearchPaths[i])
+            }
             jsb.fileUtils.setSearchPaths(paths);
 
             var fileList = [];
