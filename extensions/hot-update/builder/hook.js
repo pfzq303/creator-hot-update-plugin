@@ -17,7 +17,7 @@ var inject_script = `
             var origSearchPaths = jsb.fileUtils.getSearchPaths();
             var paths = JSON.parse(hotUpdateSearchPaths) || [];
             for(var i = 0; i < paths.length; i++) {
-                if(path[i].indexOf("./") == 0) {
+                if(paths[i].indexOf("./") == 0) {
                     paths[i] = writablePath + paths[i].substr(2);
                 }
             }
